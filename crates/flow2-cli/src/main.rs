@@ -235,7 +235,7 @@ fn main() -> ExitCode {
             eprintln!("error: {e}");
             if matches!(e, Error::Timeout) {
                 eprintln!(
-                    "The keyboard was found but did not answer. Check that its switch is in wired (USB) mode, \
+                    "The keyboard was found but did not answer. Wake it with a key press first. Then check that its switch is in wired (USB) mode, \
                      close anything else using it (VIA in a browser, Lofree's configurator) and try another cable or port."
                 );
             }

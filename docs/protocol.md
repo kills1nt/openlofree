@@ -12,12 +12,14 @@
 
 - Enumerates as `388d:0028`, product `Flow2@Lofree`, release `0x2004`.
 - Interface 2 is `0xFF60` / `0x61`. Interfaces 0 and 1 are the keyboard and consumer collections.
-- Writes to interface 2 are accepted. Reply to `0x01`: none in 3 s (see Task 12 of the core plan).
+- The first bring-up attempts got no reply to `0x01` (3 s, several tries). Cause: the keyboard was asleep. After waking it, `flow2ctl probe` answers: VIA protocol 12, 6 layers.
+- `keys --layer 0` reads 84 keys and the legends match the physical Mac layout (Esc top left, Space at 5,6, Opt and Cmd, `MO(1)` at 5,0). Layer 1 has 26 keys set.
+- Some top-row keys read as raw codes without a legend (`0x00A8` to `0x00BE`, `0x7803`, `0x7804`, `0x7E0B`, `0x7E0D`, `0x7E0F`). They are media and vendor keys, legends to add later.
 
 ## Assumed from the public VIA protocol, not yet confirmed on this keyboard
 
-- [ ] `0x04` get keycode returns the code in bytes 4 and 5, `0x05` sets it.
-- [ ] `0x11` returns the layer count in byte 1.
+- [x] `0x04` get keycode returns the code in bytes 4 and 5 (read confirmed on hardware). `0x05` set not yet run on hardware.
+- [x] `0x11` returns the layer count in byte 1 (6 on this unit).
 - [ ] Layer keycode ranges `TO` `0x5200`, `MO` `0x5220`, `TG` `0x5260`.
 - [ ] Wireless keys `0x7793` to `0x7795` and `0x7785` survive a write and read back.
 
@@ -28,7 +30,4 @@
 
 ## Findings from bring-up
 
-- 2026-09-29, core plan Task 12, Windows 11, 84-key Flow 2 Mac, USB: `flow2ctl probe` finds the device and model, then times out (write ok, no reply within 1 s, two tries). A standalone test with 33-byte and 65-byte writes and a 3 s read also got no reply.
-- No other program holding the keyboard was found (no Lofree, VIA, Vial or vendor tool processes running).
-- Not yet tried, needs the owner: step 1 of the ladder (usevia.app in Chrome with layouts/flow2-mac-84.json, needs a WebHID permission click), the switch position and Fn combinations, and the reference project on a Mac.
-- `flow2ctl scan` was not run because it needs a keyboard that answers.
+- 2026-09-29: probe timed out while the keyboard was asleep, then worked after waking it (see above). `flow2ctl scan` and the write checks in docs/hardware-checklist.md are still to run.
