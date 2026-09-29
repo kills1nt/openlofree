@@ -17,10 +17,23 @@ impl<T: Transport> ViaClient<T> {
 
     /// Sends a raw report, retrying once on I/O errors or timeouts.
     pub fn raw(&mut self, report: &Report) -> Result<Report> {
+        self.transport.flush();
         match self.transport.exchange(report) {
-            Err(Error::Io(_) | Error::Timeout) => self.transport.exchange(report),
+            Err(Error::Io(_) | Error::Timeout) => {
+                self.transport.flush();
+                self.transport.exchange(report)
+            }
             other => other,
         }
+    }
+
+    /// Sends a write and checks that the firmware handled the command.
+    fn write(&mut self, req: &Report) -> Result<()> {
+        via::expect_ack(req, &self.raw(req)?)
+    }
+
+    fn query(&mut self, req: &Report) -> Result<Report> {
+        self.raw(req)
     }
 
     pub fn protocol_version(&mut self) -> Result<u16> {
@@ -32,24 +45,29 @@ impl<T: Transport> ViaClient<T> {
     }
 
     pub fn get_keycode(&mut self, layer: u8, row: u8, col: u8) -> Result<u16> {
-        via::parse_keycode(&self.raw(&via::get_keycode(layer, row, col))?)
+        {
+            let req = via::get_keycode(layer, row, col);
+            via::parse_keycode(&req, &self.query(&req)?)
+        }
     }
 
     pub fn set_keycode(&mut self, layer: u8, row: u8, col: u8, code: u16) -> Result<()> {
-        self.raw(&via::set_keycode(layer, row, col, code))
-            .map(|_| ())
+        self.write(&via::set_keycode(layer, row, col, code))
     }
 
     pub fn backlight_get(&mut self, value: u8) -> Result<u8> {
-        via::parse_backlight_value(&self.raw(&via::backlight_get(value))?)
+        {
+            let req = via::backlight_get(value);
+            via::parse_backlight_value(&req, &self.query(&req)?)
+        }
     }
 
     pub fn backlight_set(&mut self, value: u8, data: u8) -> Result<()> {
-        self.raw(&via::backlight_set(value, data)).map(|_| ())
+        self.write(&via::backlight_set(value, data))
     }
 
     pub fn backlight_save(&mut self) -> Result<()> {
-        self.raw(&via::backlight_save()).map(|_| ())
+        self.write(&via::backlight_save())
     }
 }
 
@@ -96,5 +114,66 @@ mod tests {
     fn gives_up_after_second_failure() {
         let mut c = ViaClient::new(AlwaysFails);
         assert!(matches!(c.protocol_version(), Err(Error::Timeout)));
+    }
+
+    /// Answers each request with the reply to the previous one, like a keyboard that answered late once.
+    struct ShiftedByOne(MockDevice, Option<Report>);
+    impl Transport for ShiftedByOne {
+        fn exchange(&mut self, out: &Report) -> Result<Report> {
+            let fresh = self.0.exchange(out)?;
+            Ok(self.1.replace(fresh).unwrap_or(fresh))
+        }
+    }
+
+    #[test]
+    fn detects_reply_shifted_by_one_exchange() {
+        let mut c = ViaClient::new(ShiftedByOne(MockDevice::new(2, 3, 1), None));
+        c.get_keycode(0, 0, 0).unwrap();
+        assert!(matches!(c.get_keycode(0, 0, 1), Err(Error::BadReply(_))));
+    }
+
+    struct Counting {
+        flushes: usize,
+        exchanges: usize,
+    }
+    impl Transport for Counting {
+        fn flush(&mut self) {
+            self.flushes += 1;
+        }
+        fn exchange(&mut self, out: &Report) -> Result<Report> {
+            self.exchanges += 1;
+            if self.exchanges == 1 {
+                return Err(Error::Timeout);
+            }
+            Ok(*out)
+        }
+    }
+
+    #[test]
+    fn flushes_stale_input_before_every_attempt() {
+        let mut c = ViaClient::new(Counting {
+            flushes: 0,
+            exchanges: 0,
+        });
+        c.protocol_version().unwrap();
+        let t = c.into_transport();
+        assert_eq!((t.exchanges, t.flushes), (2, 2));
+    }
+
+    struct Unhandled;
+    impl Transport for Unhandled {
+        fn exchange(&mut self, out: &Report) -> Result<Report> {
+            let mut r = *out;
+            r[0] = 0xFF;
+            Ok(r)
+        }
+    }
+
+    #[test]
+    fn write_replies_are_checked() {
+        let mut c = ViaClient::new(Unhandled);
+        assert!(matches!(c.set_keycode(0, 0, 0, 4), Err(Error::BadReply(_))));
+        assert!(matches!(c.backlight_set(1, 10), Err(Error::BadReply(_))));
+        assert!(matches!(c.backlight_save(), Err(Error::BadReply(_))));
     }
 }

@@ -3,6 +3,10 @@ use crate::via::Report;
 
 /// One request, one reply. VIA answers every command, so a single call is enough.
 pub trait Transport {
+    /// Drops any input the device queued earlier, such as a reply that arrived after its request timed out.
+    /// Without this a late reply is read as the answer to the next request.
+    fn flush(&mut self) {}
+
     fn exchange(&mut self, out: &Report) -> Result<Report>;
 }
 

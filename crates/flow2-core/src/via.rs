@@ -23,7 +23,7 @@ fn pack(payload: &[u8]) -> Report {
     r
 }
 
-fn expect_echo(r: &Report, cmd: u8) -> Result<()> {
+fn expect_cmd(r: &Report, cmd: u8) -> Result<()> {
     if r[0] == cmd {
         Ok(())
     } else {
@@ -34,12 +34,31 @@ fn expect_echo(r: &Report, cmd: u8) -> Result<()> {
     }
 }
 
+/// A reply to a query must echo the request bytes it answers. This catches a late reply from an earlier
+/// request being read as the answer to the current one.
+fn expect_echo(req: &Report, r: &Report, n: usize) -> Result<()> {
+    if r[..n] == req[..n] {
+        Ok(())
+    } else {
+        Err(Error::BadReply(format!(
+            "reply {:02x?} does not answer request {:02x?}",
+            &r[..n],
+            &req[..n]
+        )))
+    }
+}
+
+/// A reply to a write only needs to echo the command byte (0xFF means the firmware did not handle it).
+pub fn expect_ack(req: &Report, r: &Report) -> Result<()> {
+    expect_echo(req, r, 1)
+}
+
 pub fn protocol_version() -> Report {
     pack(&[CMD_GET_PROTOCOL_VERSION])
 }
 
 pub fn parse_protocol_version(r: &Report) -> Result<u16> {
-    expect_echo(r, CMD_GET_PROTOCOL_VERSION)?;
+    expect_cmd(r, CMD_GET_PROTOCOL_VERSION)?;
     Ok(u16::from_be_bytes([r[1], r[2]]))
 }
 
@@ -48,7 +67,7 @@ pub fn layer_count() -> Report {
 }
 
 pub fn parse_layer_count(r: &Report) -> Result<u8> {
-    expect_echo(r, CMD_KEYMAP_LAYER_COUNT)?;
+    expect_cmd(r, CMD_KEYMAP_LAYER_COUNT)?;
     Ok(r[1])
 }
 
@@ -56,8 +75,8 @@ pub fn get_keycode(layer: u8, row: u8, col: u8) -> Report {
     pack(&[CMD_KEYMAP_GET_KEYCODE, layer, row, col])
 }
 
-pub fn parse_keycode(r: &Report) -> Result<u16> {
-    expect_echo(r, CMD_KEYMAP_GET_KEYCODE)?;
+pub fn parse_keycode(req: &Report, r: &Report) -> Result<u16> {
+    expect_echo(req, r, 4)?;
     Ok(u16::from_be_bytes([r[4], r[5]]))
 }
 
@@ -70,8 +89,8 @@ pub fn backlight_get(value: u8) -> Report {
     pack(&[CMD_CUSTOM_GET_VALUE, CHANNEL_BACKLIGHT, value])
 }
 
-pub fn parse_backlight_value(r: &Report) -> Result<u8> {
-    expect_echo(r, CMD_CUSTOM_GET_VALUE)?;
+pub fn parse_backlight_value(req: &Report, r: &Report) -> Result<u8> {
+    expect_echo(req, r, 3)?;
     Ok(r[3])
 }
 
@@ -121,14 +140,47 @@ mod tests {
         r[2] = 0x0C;
         assert_eq!(parse_protocol_version(&r).unwrap(), 12);
 
-        let mut r = get_keycode(0, 0, 0);
+        let req = get_keycode(0, 0, 0);
+        let mut r = req;
         r[4] = 0x00;
         r[5] = 0x29;
-        assert_eq!(parse_keycode(&r).unwrap(), 0x0029);
+        assert_eq!(parse_keycode(&req, &r).unwrap(), 0x0029);
 
-        let mut r = backlight_get(VALUE_BRIGHTNESS);
+        let req = backlight_get(VALUE_BRIGHTNESS);
+        let mut r = req;
         r[3] = 77;
-        assert_eq!(parse_backlight_value(&r).unwrap(), 77);
+        assert_eq!(parse_backlight_value(&req, &r).unwrap(), 77);
+    }
+
+    #[test]
+    fn rejects_reply_that_echoes_a_different_request() {
+        // A late reply for key (0,0,0) must not be accepted as the answer for key (0,0,1).
+        let mut stale = get_keycode(0, 0, 0);
+        stale[5] = 0x29;
+        assert!(matches!(
+            parse_keycode(&get_keycode(0, 0, 1), &stale),
+            Err(Error::BadReply(_))
+        ));
+        // Same for backlight: an effect reply is not a brightness reply.
+        assert!(matches!(
+            parse_backlight_value(
+                &backlight_get(VALUE_BRIGHTNESS),
+                &backlight_get(VALUE_EFFECT)
+            ),
+            Err(Error::BadReply(_))
+        ));
+    }
+
+    #[test]
+    fn write_ack_must_echo_the_command() {
+        let req = backlight_set(VALUE_BRIGHTNESS, 10);
+        assert!(expect_ack(&req, &req).is_ok());
+        let mut unhandled = req;
+        unhandled[0] = 0xFF;
+        assert!(matches!(
+            expect_ack(&req, &unhandled),
+            Err(Error::BadReply(_))
+        ));
     }
 
     #[test]

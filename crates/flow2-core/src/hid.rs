@@ -44,6 +44,12 @@ pub fn find() -> Result<(HidTransport, DeviceInfo)> {
 }
 
 impl Transport for HidTransport {
+    fn flush(&mut self) {
+        let mut scratch = [0u8; REPORT_SIZE];
+        // Non-blocking reads until the queue is empty. An error also ends the drain, exchange will report it.
+        while matches!(self.dev.read_timeout(&mut scratch, 0), Ok(n) if n > 0) {}
+    }
+
     fn exchange(&mut self, out: &Report) -> Result<Report> {
         let mut buf = [0u8; REPORT_SIZE + 1]; // byte 0 is the report id, VIA uses none
         buf[1..].copy_from_slice(out);
