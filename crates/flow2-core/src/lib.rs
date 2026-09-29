@@ -6,3 +6,4 @@ pub mod client;
 pub mod transport;
 pub mod keymap;
 pub mod backlight;
+pub mod layout;
