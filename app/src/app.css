@@ -1,1 +1,281 @@
-body { margin: 0; }
+/* Tokens and shared parts. Values and reasons are in DESIGN.md at the repo root. */
+:root {
+  --bg: #f3eee4;
+  --surface: #fbf8f2;
+  --ink: #1f1b16;
+  --muted: #5c5347;
+  --line: #d8cfbf;
+  --control-edge: #857a67;
+  --key: #fffdf8;
+  --key-edge: #cfc3ad;
+  --accent: #e9a23b;
+  --accent-edge: #a8701a;
+  --on-accent: #1f1b16;
+  --focus: #1f1b16;
+  --danger: #b3391f;
+  --ok: #2a7048;
+  --scrim: rgb(31 27 22 / 0.45);
+  color-scheme: light;
+
+  --font: 'Onest Variable', 'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --r-key: 8px;
+  --r-panel: 14px;
+  --r-button: 10px;
+  --r-input: 8px;
+}
+
+:root[data-theme='dark'] {
+  --bg: #15120e;
+  --surface: #1e1a15;
+  --ink: #f3eee4;
+  --muted: #a89d8c;
+  --line: #38312a;
+  --control-edge: #857a69;
+  --key: #2a241d;
+  --key-edge: #0f0d0a;
+  --accent: #f2b24d;
+  --accent-edge: #a8701a;
+  --on-accent: #15120e;
+  --focus: #f2b24d;
+  --danger: #ff8a6b;
+  --ok: #7cc79a;
+  --scrim: rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #15120e;
+    --surface: #1e1a15;
+    --ink: #f3eee4;
+    --muted: #a89d8c;
+    --line: #38312a;
+    --control-edge: #857a69;
+    --key: #2a241d;
+    --key-edge: #0f0d0a;
+    --accent: #f2b24d;
+    --accent-edge: #a8701a;
+    --on-accent: #15120e;
+    --focus: #f2b24d;
+    --danger: #ff8a6b;
+    --ok: #7cc79a;
+    --scrim: rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---- surfaces ---- */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  padding: 20px;
+}
+
+/* ---- buttons: keycaps with a lit face and a darker edge ---- */
+.btn {
+  appearance: none;
+  font: inherit;
+  font-weight: 560;
+  color: var(--ink);
+  background: var(--key);
+  border: 1px solid var(--control-edge);
+  border-radius: var(--r-button);
+  padding: 8px 16px;
+  min-height: 40px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 var(--key-edge);
+  transform: translateY(0);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 var(--key-edge);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--key-edge);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--ink);
+  box-shadow: 0 3px 0 var(--accent-edge);
+}
+
+.btn.primary:hover:not(:disabled) {
+  box-shadow: 0 4px 0 var(--accent-edge);
+}
+
+.btn.primary:active:not(:disabled) {
+  box-shadow: 0 1px 0 var(--accent-edge);
+}
+
+.btn.danger {
+  color: var(--danger);
+}
+
+.btn.small {
+  min-height: 34px;
+  padding: 4px 12px;
+  font-size: 0.9rem;
+}
+
+.btn.quiet {
+  background: transparent;
+  box-shadow: none;
+  border-color: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.btn.quiet:hover:not(:disabled),
+.btn.quiet:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---- inputs ---- */
+.input {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--control-edge);
+  border-radius: var(--r-input);
+  padding: 9px 12px;
+  min-height: 40px;
+  width: 100%;
+}
+
+.input::placeholder {
+  color: var(--muted);
+}
+
+label.field {
+  display: grid;
+  gap: 6px;
+  font-weight: 560;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.error-text {
+  color: var(--danger);
+}
+
+.ok-text {
+  color: var(--ok);
+}
+
+/* ---- segmented control ---- */
+.segmented {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.segmented button {
+  font: inherit;
+  font-weight: 560;
+  color: var(--ink);
+  background: var(--key);
+  border: 1px solid var(--control-edge);
+  border-radius: var(--r-button);
+  padding: 8px 18px;
+  min-height: 42px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 var(--key-edge);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.segmented button[aria-checked='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--ink);
+  box-shadow: 0 1px 0 var(--accent-edge);
+  transform: translateY(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
