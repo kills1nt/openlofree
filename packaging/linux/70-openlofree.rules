@@ -1,0 +1,2 @@
+# Lets the logged-in user talk to Lofree keyboards over raw HID (VIA).
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="388d", TAG+="uaccess"

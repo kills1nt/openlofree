@@ -2,7 +2,17 @@
 
 Open-source configuration tool for Lofree Flow 2 keyboards. It talks to the keyboard's built-in VIA firmware over USB, so there is no driver and no custom firmware.
 
-Status: early. A desktop app (Tauri, Windows, Linux, macOS), a command line tool and a Rust library.
+Status: v0.1.0, pre-release. A desktop app (Tauri, Windows, Linux, macOS), a command line tool and a Rust library.
+
+## Install
+
+Download from [Releases](https://github.com/kills1nt/openlofree/releases). The builds are not signed or notarized.
+
+- **Windows:** run the `-setup.exe` or `.msi`, or the `-portable.exe`. SmartScreen: More info, Run anyway.
+- **macOS:** open the `.dmg`, drag the app to Applications, right-click it and choose Open. If macOS calls it damaged, run `xattr -dr com.apple.quarantine /Applications/openlofree.app`.
+- **Linux:** install the `.deb` or `.rpm`, they include the udev rule. For the `.AppImage`, copy `70-openlofree.rules` from the release to `/etc/udev/rules.d/`, run `sudo udevadm control --reload-rules` and replug the keyboard.
+
+`flow2ctl` (the command line tool) is in the same release.
 
 ## Desktop app
 
@@ -37,7 +47,7 @@ Tested on hardware: reading (`probe`, `keys`, and the app opening and reading th
 ## Use
 
 ```bash
-cargo install --path crates/flow2-cli   # or download flow2ctl from Releases (Windows)
+cargo install --path crates/flow2-cli   # or download flow2ctl from Releases
 
 flow2ctl probe                  # find the keyboard, print model, VIA protocol, layers
 flow2ctl keys --layer 0         # print a layer
@@ -50,7 +60,7 @@ flow2ctl battery                # macOS, Bluetooth
 ```
 
 - macOS: allow Input Monitoring for your terminal (System Settings, Privacy and Security).
-- Linux: building needs `libudev-dev`. Access to the hidraw device needs a udev rule, which is not shipped yet.
+- Linux: building needs `libudev-dev`. Access to the hidraw device needs the udev rule in `packaging/linux/70-openlofree.rules` (the .deb and .rpm install it).
 
 ## Layout
 

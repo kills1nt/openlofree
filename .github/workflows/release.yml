@@ -1,0 +1,89 @@
+name: release
+
+# A v* tag builds every platform and opens a draft pre-release for testing.
+# A manual run builds the same files and keeps them as workflow artifacts only.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, id: windows-x64, target: "" }
+          - { os: ubuntu-22.04, id: linux-x64, target: "" }
+          - { os: macos-latest, id: macos-arm64, target: aarch64-apple-darwin }
+          - { os: macos-latest, id: macos-x64, target: x86_64-apple-darwin }
+    runs-on: ${{ matrix.os }}
+    env:
+      TARGET: ${{ matrix.target }}
+      NO_STRIP: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches the app version
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          v="$(sed -n 's/.*"version": "\(.*\)".*/\1/p' app/src-tauri/tauri.conf.json | head -1)"
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag $GITHUB_REF_NAME but app version is $v"; exit 1; }
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libudev-dev patchelf rpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.id }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+        working-directory: app
+      - name: Build the app and its installers
+        working-directory: app
+        shell: bash
+        run: npm run tauri build -- ${TARGET:+--target $TARGET}
+      - name: Build flow2ctl
+        shell: bash
+        run: cargo build --release -p flow2-cli ${TARGET:+--target $TARGET}
+      - name: Collect files
+        shell: bash
+        run: packaging/collect.sh "${{ matrix.id }}" "$TARGET"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: assets-${{ matrix.id }}
+          path: release-assets/*
+          retention-days: 7
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          pattern: assets-*
+          merge-multiple: true
+      - name: Checksums
+        run: cd assets && sha256sum * > SHA256SUMS.txt
+      - name: Draft pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" assets/* \
+            --draft --prerelease \
+            --title "openlofree $GITHUB_REF_NAME" \
+            --notes-file "docs/release-notes/$GITHUB_REF_NAME.md"

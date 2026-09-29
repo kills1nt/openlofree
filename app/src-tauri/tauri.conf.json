@@ -27,6 +27,28 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "kills1nt",
+    "category": "Utility",
+    "shortDescription": "Configure Lofree Flow 2 keyboards",
+    "longDescription": "Keymap, backlight and profiles for Lofree Flow 2 keyboards over USB (VIA). No driver, no custom firmware.",
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/lib/udev/rules.d/70-openlofree.rules": "../../packaging/linux/70-openlofree.rules"
+        },
+        "postInstallScript": "../../packaging/linux/postinst.sh"
+      },
+      "rpm": {
+        "files": {
+          "/usr/lib/udev/rules.d/70-openlofree.rules": "../../packaging/linux/70-openlofree.rules"
+        },
+        "postInstallScript": "../../packaging/linux/postinst.sh"
+      }
+    },
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
