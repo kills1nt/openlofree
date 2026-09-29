@@ -8,3 +8,4 @@ pub mod keymap;
 pub mod backlight;
 pub mod layout;
 pub mod models;
+pub mod keycodes;
