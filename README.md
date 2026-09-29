@@ -2,7 +2,18 @@
 
 Open-source configuration tool for Lofree Flow 2 keyboards. It talks to the keyboard's built-in VIA firmware over USB, so there is no driver and no custom firmware.
 
-Status: early (v0.1.0). A command line tool and a Rust library. The desktop app with key remapping screens, profiles and animations is planned, not built yet.
+Status: early. A desktop app (Tauri, Windows, Linux, macOS), a command line tool and a Rust library.
+
+## Desktop app
+
+Keys (click a key, pick what it types, apply), Lighting (live preview, saved on Apply), Profiles (save, apply, duplicate, export, import), Device (model, protocol, battery, factory backup), light and dark themes, a tray menu with one-click profiles. A Demo mode runs without a keyboard and never writes to a real one.
+
+```bash
+cd app
+npm install
+npm run tauri dev            # development
+npm run tauri build -- --no-bundle   # release build, output in target/release
+```
 
 ## What works
 
@@ -13,7 +24,7 @@ Status: early (v0.1.0). A command line tool and a Rust library. The desktop app 
 - A factory backup of the keyboard's state is saved once, before the first write, and never overwritten.
 - Battery over Bluetooth on macOS.
 
-Tested on hardware: reading (`probe`, `keys`) on the 84-key Flow 2 Mac over USB on Windows 11. **Not yet tested on hardware: any write** (`set-key`, `light`, `brightness`, `apply`), Linux, macOS, the 68 and 100 key models.
+Tested on hardware: reading (`probe`, `keys`, and the app opening and reading the keymap) on the 84-key Flow 2 Mac over USB on Windows 11. **Not yet tested on hardware: any write** (`set-key`, `light`, `brightness`, `apply`), Linux, macOS, the 68 and 100 key models.
 
 ## Limits
 
@@ -46,6 +57,7 @@ flow2ctl battery                # macOS, Bluetooth
 ```
 crates/flow2-core   device logic: VIA codec, keymap, backlight, profiles, mock device
 crates/flow2-cli    flow2ctl
+app/                Tauri app (Svelte UI in app/src, Rust layer in app/src-tauri)
 layouts/            key geometry per model
 docs/               design spec, implementation plan, protocol notes, hardware checklist
 ```

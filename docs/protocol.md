@@ -20,6 +20,7 @@
 
 - [x] `0x04` get keycode returns the code in bytes 4 and 5 (read confirmed on hardware). `0x05` set not yet run on hardware.
 - [x] `0x11` returns the layer count in byte 1 (6 on this unit).
+- [x] `0x12` get keymap buffer works: 28 bytes per request, layer then row then column, two bytes per key, big endian. A full read of 6 layers takes about 1.3 s instead of over 8 s with one request per key. The reader cross-checks the buffer against a direct read and falls back to per-key reads if they disagree.
 - [ ] Layer keycode ranges `TO` `0x5200`, `MO` `0x5220`, `TG` `0x5260`.
 - [ ] Wireless keys `0x7793` to `0x7795` and `0x7785` survive a write and read back.
 

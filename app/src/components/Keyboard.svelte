@@ -115,14 +115,14 @@
           onkeydown={(e) => onkey(e, k)}
         >
           <span class="cap">
-            {#key layer}<span class="legend" class:long={text.length > 5 && k.w < 1.5} class:dim={code <= 1}>{text}</span>{/key}
+            {#key layer}<span class="legend" class:long={k.w < 1.5 && (text.length > 6 || text.startsWith('0x'))} class:dim={code <= 1}>{text}</span>{/key}
             {#if changed}<span class="mark" aria-hidden="true"></span>{/if}
           </span>
         </button>
       {:else}
         <div class="key" class:pressed={pressed.has(id)} {style} aria-hidden="true">
           <span class="cap">
-            {#key layer}<span class="legend" class:long={text.length > 5 && k.w < 1.5} class:dim={code <= 1}>{text}</span>{/key}
+            {#key layer}<span class="legend" class:long={k.w < 1.5 && (text.length > 6 || text.startsWith('0x'))} class:dim={code <= 1}>{text}</span>{/key}
           </span>
         </div>
       {/if}
