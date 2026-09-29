@@ -1,0 +1,14 @@
+[package]
+name = "flow2-cli"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "flow2ctl: command line for Lofree Flow 2 keyboards"
+
+[[bin]]
+name = "flow2ctl"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+flow2-core = { path = "../flow2-core" }
