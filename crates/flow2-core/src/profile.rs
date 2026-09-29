@@ -98,6 +98,123 @@ pub fn apply<T: Transport>(
     Ok(changed)
 }
 
+/// Summary of a stored profile for lists.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ProfileInfo {
+    pub name: String,
+    pub model: String,
+    pub layers: usize,
+}
+
+/// Profiles as one JSON file each in a directory. The name is kept inside the file, the file name is
+/// only `profile-<slug>.json`, so odd names cannot escape the directory or hit Windows device names.
+pub struct ProfileStore {
+    dir: PathBuf,
+}
+
+const MAX_NAME_CHARS: usize = 60;
+
+fn slug(name: &str) -> String {
+    let mut out = String::new();
+    for c in name.trim().chars().flat_map(char::to_lowercase) {
+        if c.is_alphanumeric() {
+            out.push(c);
+        } else if !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+    out.trim_matches('-').to_string()
+}
+
+impl ProfileStore {
+    pub fn new(dir: PathBuf) -> Self {
+        Self { dir }
+    }
+
+    pub fn default_dir() -> Option<PathBuf> {
+        dirs::config_dir().map(|d| d.join("openlofree").join("profiles"))
+    }
+
+    fn path_for(&self, name: &str) -> Result<PathBuf> {
+        let trimmed = name.trim();
+        if trimmed.is_empty() || trimmed.chars().count() > MAX_NAME_CHARS {
+            return Err(Error::Profile(format!(
+                "name must be 1 to {MAX_NAME_CHARS} characters"
+            )));
+        }
+        let slug = slug(trimmed);
+        if slug.is_empty() {
+            return Err(Error::Profile(
+                "name needs at least one letter or digit".into(),
+            ));
+        }
+        Ok(self.dir.join(format!("profile-{slug}.json")))
+    }
+
+    pub fn list(&self) -> Result<Vec<ProfileInfo>> {
+        let Ok(entries) = fs::read_dir(&self.dir) else {
+            return Ok(Vec::new());
+        };
+        let mut out: Vec<ProfileInfo> = entries
+            .flatten()
+            .filter(|e| {
+                let n = e.file_name();
+                let n = n.to_string_lossy();
+                n.starts_with("profile-") && n.ends_with(".json")
+            })
+            .filter_map(|e| Profile::load(&e.path()).ok())
+            .map(|p| ProfileInfo {
+                layers: p.layers.len(),
+                name: p.name,
+                model: p.model,
+            })
+            .collect();
+        out.sort_by_key(|p| p.name.to_lowercase());
+        Ok(out)
+    }
+
+    pub fn load(&self, name: &str) -> Result<Profile> {
+        let p = Profile::load(&self.path_for(name)?)
+            .map_err(|_| Error::Profile(format!("no profile named {name:?}")))?;
+        if p.name == name {
+            Ok(p)
+        } else {
+            Err(Error::Profile(format!("no profile named {name:?}")))
+        }
+    }
+
+    /// Saves under the profile's name, replacing a profile with exactly that name.
+    /// Refuses when a differently named profile already owns the file name.
+    pub fn save(&self, p: &Profile) -> Result<()> {
+        let path = self.path_for(&p.name)?;
+        if let Ok(existing) = Profile::load(&path) {
+            if existing.name != p.name {
+                return Err(Error::Profile(format!(
+                    "the name is too close to the existing profile {:?}",
+                    existing.name
+                )));
+            }
+        }
+        p.save(&path)
+    }
+
+    pub fn delete(&self, name: &str) -> Result<()> {
+        self.load(name)?;
+        fs::remove_file(self.path_for(name)?).map_err(|e| Error::Profile(e.to_string()))
+    }
+
+    pub fn duplicate(&self, name: &str, new_name: &str) -> Result<()> {
+        let mut p = self.load(name)?;
+        if self.path_for(new_name)?.exists() {
+            return Err(Error::Profile(format!(
+                "a profile named {new_name:?} already exists"
+            )));
+        }
+        p.name = new_name.trim().to_string();
+        self.save(&p)
+    }
+}
+
 pub fn factory_backup_path() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join("openlofree").join("factory-backup.json"))
 }
@@ -204,5 +321,95 @@ mod tests {
         assert!(!ensure_factory_backup(&mut c, "test", &def(), &path).unwrap());
         assert_eq!(Profile::load(&path).unwrap().layers[0][0], 0);
         let _ = fs::remove_file(path);
+    }
+
+    fn store(name: &str) -> ProfileStore {
+        let dir =
+            std::env::temp_dir().join(format!("openlofree-store-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        ProfileStore::new(dir)
+    }
+
+    fn sample(name: &str) -> Profile {
+        capture(&mut client(), "test", &def(), name).unwrap()
+    }
+
+    #[test]
+    fn store_saves_lists_and_loads() {
+        let s = store("basic");
+        assert!(s.list().unwrap().is_empty());
+        s.save(&sample("Gaming")).unwrap();
+        s.save(&sample("Work")).unwrap();
+        let names: Vec<_> = s.list().unwrap().into_iter().map(|p| p.name).collect();
+        assert_eq!(names, ["Gaming", "Work"]);
+        assert_eq!(s.load("Work").unwrap().name, "Work");
+        assert!(s.load("Nope").is_err());
+    }
+
+    #[test]
+    fn store_save_overwrites_the_same_name() {
+        let s = store("overwrite");
+        let mut p = sample("Work");
+        s.save(&p).unwrap();
+        p.layers[0][0] = 0x0004;
+        s.save(&p).unwrap();
+        assert_eq!(s.list().unwrap().len(), 1);
+        assert_eq!(s.load("Work").unwrap().layers[0][0], 0x0004);
+    }
+
+    #[test]
+    fn store_delete_and_duplicate() {
+        let s = store("dupdel");
+        s.save(&sample("Work")).unwrap();
+        s.duplicate("Work", "Work copy").unwrap();
+        assert_eq!(s.load("Work copy").unwrap().name, "Work copy");
+        assert!(s.duplicate("Work", "Work copy").is_err());
+        s.delete("Work").unwrap();
+        assert!(s.load("Work").is_err());
+        assert!(s.delete("Work").is_err());
+        assert_eq!(s.list().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn store_names_that_share_a_file_name_do_not_clobber_each_other() {
+        let s = store("collide");
+        s.save(&sample("My Profile")).unwrap();
+        assert!(matches!(
+            s.save(&sample("my-profile")),
+            Err(Error::Profile(_))
+        ));
+        assert_eq!(s.load("My Profile").unwrap().name, "My Profile");
+    }
+
+    #[test]
+    fn store_keeps_hostile_names_inside_its_directory() {
+        let s = store("hostile");
+        s.save(&sample("../evil")).unwrap();
+        let outside = s.dir.parent().unwrap().join("evil.json");
+        assert!(!outside.exists());
+        assert_eq!(s.load("../evil").unwrap().name, "../evil");
+        // Windows reserved device names must not become file names.
+        s.save(&sample("con")).unwrap();
+        assert_eq!(s.load("con").unwrap().name, "con");
+    }
+
+    #[test]
+    fn store_rejects_empty_and_overlong_names() {
+        let s = store("names");
+        assert!(matches!(s.save(&sample("   ")), Err(Error::Profile(_))));
+        assert!(matches!(s.save(&sample("///")), Err(Error::Profile(_))));
+        assert!(matches!(
+            s.save(&sample(&"x".repeat(61))),
+            Err(Error::Profile(_))
+        ));
+    }
+
+    #[test]
+    fn store_list_skips_broken_files() {
+        let s = store("broken");
+        s.save(&sample("Good")).unwrap();
+        fs::write(s.dir.join("profile-bad.json"), "{ not json").unwrap();
+        let names: Vec<_> = s.list().unwrap().into_iter().map(|p| p.name).collect();
+        assert_eq!(names, ["Good"]);
     }
 }
