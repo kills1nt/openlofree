@@ -1,9 +1,10 @@
 //! Parses a VIA-style definition: name, ids, matrix size and KLE-style key geometry.
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::error::{Error, Result};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct KeyDef {
     pub row: u8,
     pub col: u8,
@@ -13,7 +14,7 @@ pub struct KeyDef {
     pub h: f32,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ModelDef {
     pub name: String,
     pub vendor_id: u16,
@@ -180,5 +181,12 @@ mod tests {
             parse_definition("not json"),
             Err(Error::Layout(_))
         ));
+    }
+
+    #[test]
+    fn serializes_for_the_ui() {
+        let v = serde_json::to_value(parse_definition(TINY).unwrap()).unwrap();
+        assert_eq!(v["keys"].as_array().unwrap().len(), 5);
+        assert_eq!(v["product_id"], 0x00AB);
     }
 }

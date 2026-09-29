@@ -35,15 +35,21 @@ pub fn read<T: Transport>(client: &mut ViaClient<T>) -> Result<Backlight> {
     Ok(Backlight { mode, brightness })
 }
 
-/// Writes the settings and saves them to the keyboard so they survive a power cycle.
-pub fn apply<T: Transport>(client: &mut ViaClient<T>, b: Backlight) -> Result<()> {
+/// Changes the light now without saving, for live previews. A power cycle restores the saved setting.
+/// Sliders must use this, not `apply`, so dragging does not wear the keyboard memory.
+pub fn preview<T: Transport>(client: &mut ViaClient<T>, b: Backlight) -> Result<()> {
     match b.mode {
-        Mode::Off => client.backlight_set(VALUE_BRIGHTNESS, 0)?,
+        Mode::Off => client.backlight_set(VALUE_BRIGHTNESS, 0),
         Mode::Steady | Mode::Breathing => {
             client.backlight_set(VALUE_EFFECT, (b.mode == Mode::Breathing) as u8)?;
-            client.backlight_set(VALUE_BRIGHTNESS, b.brightness)?;
+            client.backlight_set(VALUE_BRIGHTNESS, b.brightness)
         }
     }
+}
+
+/// Writes the settings and saves them to the keyboard so they survive a power cycle.
+pub fn apply<T: Transport>(client: &mut ViaClient<T>, b: Backlight) -> Result<()> {
+    preview(client, b)?;
     client.backlight_save()
 }
 
@@ -94,5 +100,17 @@ mod tests {
         )
         .unwrap();
         assert!(c.into_transport().saved);
+    }
+
+    #[test]
+    fn preview_changes_the_light_without_saving() {
+        let mut c = ViaClient::new(MockDevice::new(1, 1, 1));
+        let b = Backlight {
+            mode: Mode::Breathing,
+            brightness: 33,
+        };
+        preview(&mut c, b).unwrap();
+        assert_eq!(read(&mut c).unwrap(), b);
+        assert!(!c.into_transport().saved);
     }
 }

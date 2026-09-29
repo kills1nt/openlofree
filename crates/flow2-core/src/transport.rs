@@ -10,6 +10,16 @@ pub trait Transport {
     fn exchange(&mut self, out: &Report) -> Result<Report>;
 }
 
+impl<T: Transport + ?Sized> Transport for Box<T> {
+    fn flush(&mut self) {
+        (**self).flush()
+    }
+
+    fn exchange(&mut self, out: &Report) -> Result<Report> {
+        (**self).exchange(out)
+    }
+}
+
 /// In-memory VIA device for tests and for running the UI without a keyboard.
 pub mod mock {
     use super::Transport;
@@ -95,5 +105,19 @@ pub mod mock {
             }
             Ok(r)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mock::MockDevice;
+    use super::Transport;
+    use crate::client::ViaClient;
+
+    #[test]
+    fn boxed_dyn_transport_works_in_a_client() {
+        let boxed: Box<dyn Transport + Send> = Box::new(MockDevice::new(2, 3, 2));
+        let mut c = ViaClient::new(boxed);
+        assert_eq!(c.layer_count().unwrap(), 2);
     }
 }
