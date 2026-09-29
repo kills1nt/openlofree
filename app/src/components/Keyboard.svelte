@@ -115,14 +115,14 @@
           onkeydown={(e) => onkey(e, k)}
         >
           <span class="cap">
-            {#key layer}<span class="legend">{text}</span>{/key}
+            {#key layer}<span class="legend" class:long={text.length > 5 && k.w < 1.5} class:dim={code <= 1}>{text}</span>{/key}
             {#if changed}<span class="mark" aria-hidden="true"></span>{/if}
           </span>
         </button>
       {:else}
         <div class="key" class:pressed={pressed.has(id)} {style} aria-hidden="true">
           <span class="cap">
-            {#key layer}<span class="legend">{text}</span>{/key}
+            {#key layer}<span class="legend" class:long={text.length > 5 && k.w < 1.5} class:dim={code <= 1}>{text}</span>{/key}
           </span>
         </div>
       {/if}
@@ -136,12 +136,15 @@
     width: 100%;
     max-width: 1120px;
     margin: 0 auto;
+    /* Narrow windows scroll the keyboard sideways instead of shrinking keys below a usable size. */
+    overflow-x: auto;
+    padding-bottom: 4px;
   }
 
   .kb {
-    --u: calc(100cqw / var(--cols));
+    --u: max(calc(100cqw / var(--cols)), 42px);
     position: relative;
-    width: 100%;
+    width: calc(var(--cols) * var(--u));
     height: calc(var(--rows) * var(--u) + var(--u) * 0.12);
   }
 
@@ -215,12 +218,27 @@
     max-width: 100%;
     padding: 0 3%;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    text-align: center;
+    line-height: 1.05;
+    overflow-wrap: break-word;
     font-size: clamp(9px, calc(var(--u) * 0.27), 17px);
     font-weight: 560;
     animation: legend-in 220ms ease-out both;
     animation-delay: var(--d);
+  }
+
+  /* None and transparent keys recede so real assignments stand out. */
+  .legend.dim {
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .night .legend.dim {
+    color: color-mix(in srgb, var(--lit) calc(var(--light) * 55%), var(--unlit));
+  }
+
+  .legend.long {
+    font-size: clamp(7.5px, calc(var(--u) * 0.175), 12px);
   }
 
   .mark {
