@@ -62,6 +62,10 @@ pub fn set_key_verified<T: Transport>(
 
 /// Writes only the keys that differ from the device. Returns how many were written.
 pub fn apply<T: Transport>(client: &mut ViaClient<T>, target: &Keymap) -> Result<usize> {
+    let want = target.rows as usize * target.cols as usize;
+    if target.layers.iter().any(|l| l.len() != want) {
+        return Err(Error::Profile(format!("every layer must have {want} keys")));
+    }
     let current = read(client, target.rows, target.cols)?;
     if current.layers.len() != target.layers.len() {
         return Err(Error::Profile(format!(
@@ -192,5 +196,17 @@ mod tests {
             check_position(6, 15, 4, 0, 0, 15),
             Err(Error::Profile(_))
         ));
+    }
+
+    #[test]
+    fn apply_rejects_wrongly_shaped_layers_before_any_write() {
+        let mut c = client();
+        let target = Keymap {
+            rows: 2,
+            cols: 3,
+            layers: vec![vec![0; 6], vec![9; 5]],
+        };
+        assert!(matches!(apply(&mut c, &target), Err(Error::Profile(_))));
+        assert_eq!(read(&mut c, 2, 3).unwrap().layers[0][0], 0);
     }
 }
