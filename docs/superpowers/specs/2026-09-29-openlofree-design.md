@@ -31,6 +31,11 @@ Verified from the owner's `oe927-84-key.json`: name `Flow2@Lofree`, VID `0x388d`
 
 From the research report (`lofree-flow2-research.md`, medium confidence): firmware is QMK with VIA, raw HID usage page `0xFF60`, usage `0x61`, 32-byte reports. The vendor VIA channel is not reachable over Bluetooth (two community sources, cause unknown). Behavior over the 2.4G dongle is unverified. PID differs per model and variant, so discovery matches by VID plus usage page and reads the PID from the definition file.
 
+Hardware finding, 2026-09-29, owner's 84-key Flow 2 Mac over USB on Windows 11:
+- Enumerates as `388d:0028`, product string `Flow2@Lofree`, release `0x2004`. PID `0x0028` matches the owner's definition file.
+- Seven HID collections on three interfaces: interface 0 (keyboard, consumer, mouse-like collections), interface 1 (second keyboard collection), interface 2 with usage page `0xFF60`, usage `0x61` (VIA raw HID).
+- A VIA "get protocol version" request (`0x01`) written to interface 2 was accepted (33 bytes written) but got no reply in 3 s, with both 33-byte and 65-byte writes. Cause not yet known. The plan's bring-up task starts here.
+
 Assumptions to verify in step 1 of the plan:
 - VIA command IDs (get protocol version, keycode get/set, layer count, buffer read/write, custom value get/set/save) match the public VIA protocol, checked against the VIA protocol source and the `linder3hs/lofree-flow-2` code.
 - The backlight channel and value IDs, which `linder3hs` found by probing, not from a JSON menu.
