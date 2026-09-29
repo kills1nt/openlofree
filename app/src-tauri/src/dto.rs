@@ -43,7 +43,10 @@ pub struct AppError {
 
 impl AppError {
     pub fn new(kind: &'static str, message: impl Into<String>) -> Self {
-        Self { kind, message: message.into() }
+        Self {
+            kind,
+            message: message.into(),
+        }
     }
 
     pub fn no_session() -> Self {
@@ -74,7 +77,13 @@ mod tests {
     fn errors_carry_a_kind_the_ui_can_branch_on() {
         assert_eq!(AppError::from(Error::NotFound).kind, "not_found");
         assert_eq!(AppError::from(Error::Timeout).kind, "timeout");
-        let v = Error::VerifyFailed { layer: 0, row: 1, col: 2, wrote: 4, read: 0 };
+        let v = Error::VerifyFailed {
+            layer: 0,
+            row: 1,
+            col: 2,
+            wrote: 4,
+            read: 0,
+        };
         let e = AppError::from(v);
         assert_eq!(e.kind, "verify_failed");
         assert!(e.message.contains("layer 0"));

@@ -72,7 +72,14 @@ pub fn open_session(demo_mode: bool) -> Result<Session, Error> {
         let dev = demo::demo_device(&def);
         let client: Client = ViaClient::new(Box::new(dev));
         let pid = def.product_id;
-        (client, model, def, "Demo keyboard (no hardware)".to_string(), hid::VENDOR_ID, pid)
+        (
+            client,
+            model,
+            def,
+            "Demo keyboard (no hardware)".to_string(),
+            hid::VENDOR_ID,
+            pid,
+        )
     } else {
         let (transport, info) = hid::find()?;
         let (model, def) = models::by_product_id(info.product_id).ok_or_else(|| {
@@ -82,7 +89,14 @@ pub fn open_session(demo_mode: bool) -> Result<Session, Error> {
             ))
         })?;
         let client: Client = ViaClient::new(Box::new(transport));
-        (client, model, def, info.product, info.vendor_id, info.product_id)
+        (
+            client,
+            model,
+            def,
+            info.product,
+            info.vendor_id,
+            info.product_id,
+        )
     };
     let mut client = client;
     let protocol = client.protocol_version()?;
@@ -114,7 +128,11 @@ impl AppState {
     pub fn new() -> Self {
         let dir = ProfileStore::default_dir()
             .unwrap_or_else(|| std::env::temp_dir().join("openlofree-profiles"));
-        Self { session: Mutex::new(None), store: ProfileStore::new(dir), battery: Mutex::new(None) }
+        Self {
+            session: Mutex::new(None),
+            store: ProfileStore::new(dir),
+            battery: Mutex::new(None),
+        }
     }
 
     /// Runs `f` on the current session. Errors from the keyboard become `AppError`s.
@@ -217,7 +235,10 @@ mod tests {
     #[test]
     fn demo_session_reports_the_84_mac_model() {
         let info = AppState::new().connect(true).unwrap();
-        assert_eq!((info.model_id.as_str(), info.layers, info.rows, info.cols), ("flow2-mac-84", 6, 6, 15));
+        assert_eq!(
+            (info.model_id.as_str(), info.layers, info.rows, info.cols),
+            ("flow2-mac-84", 6, 6, 15)
+        );
         assert!(info.demo && info.mac && info.verified);
         assert_eq!(info.keys.len(), 84);
     }
@@ -242,9 +263,14 @@ mod tests {
     #[test]
     fn build_profile_rejects_a_wrong_shaped_keymap() {
         let s = connected();
-        let bl = Backlight { mode: Mode::Steady, brightness: 200 };
+        let bl = Backlight {
+            mode: Mode::Steady,
+            brightness: 200,
+        };
         assert!(s.build_profile("Mine", vec![vec![0; 3]], bl).is_err());
-        let good = s.with(|s| flow2_core::keymap::read(&mut s.client, 6, 15)).unwrap();
+        let good = s
+            .with(|s| flow2_core::keymap::read(&mut s.client, 6, 15))
+            .unwrap();
         assert!(s.build_profile("Mine", good.layers, bl).is_ok());
     }
 }
