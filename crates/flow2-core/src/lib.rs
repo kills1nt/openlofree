@@ -10,3 +10,4 @@ pub mod layout;
 pub mod models;
 pub mod keycodes;
 pub mod profile;
+pub mod battery;
