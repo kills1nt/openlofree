@@ -6,7 +6,7 @@ Status: v0.1.0, pre-release. A desktop app (Tauri, Windows, Linux, macOS), a com
 
 ## Install
 
-Download from [Releases](https://github.com/kills1nt/openlofree/releases). The builds are not signed or notarized.
+Download from [Releases](https://github.com/kills1nt/openlofree/releases). The builds are not signed or notarized. v0.1.0 has Windows files only. The Linux and macOS steps below apply once those installers are published, until then build from source.
 
 - **Windows:** run the `-setup.exe` or `.msi`, or the `-portable.exe`. SmartScreen: More info, Run anyway.
 - **macOS:** open the `.dmg`, drag the app to Applications, right-click it and choose Open. If macOS calls it damaged, run `xattr -dr com.apple.quarantine /Applications/openlofree.app`.
