@@ -1,5 +1,6 @@
 //! Registry of supported models. Adding a model means one entry here and one file in `layouts/`.
 use crate::error::Result;
+use crate::keycodes::Variant;
 use crate::layout::{parse_definition, ModelDef};
 
 pub struct Model {
@@ -7,6 +8,8 @@ pub struct Model {
     pub label: &'static str,
     /// True only for models tested on real hardware.
     pub verified: bool,
+    /// Which legends the keycaps carry (Option and Cmd on Mac).
+    pub variant: Variant,
     json: &'static str,
 }
 
@@ -20,6 +23,7 @@ pub const MODELS: &[Model] = &[Model {
     id: "flow2-mac-84",
     label: "Flow 2 Mac 84",
     verified: true,
+    variant: Variant::Mac,
     json: include_str!("../../../layouts/flow2-mac-84.json"),
 }];
 
@@ -58,5 +62,10 @@ mod tests {
     fn looks_up_by_product_id() {
         assert_eq!(by_product_id(0x0028).unwrap().0.id, "flow2-mac-84");
         assert!(by_product_id(0xFFFF).is_none());
+    }
+
+    #[test]
+    fn flow2_mac_84_is_the_mac_variant() {
+        assert_eq!(MODELS[0].variant, Variant::Mac);
     }
 }
