@@ -1,3 +1,3 @@
 [workspace]
 resolver = "2"
-members = ["crates/flow2-core", "crates/flow2-cli"]
+members = ["crates/flow2-core", "crates/flow2-cli", "app/src-tauri"]
