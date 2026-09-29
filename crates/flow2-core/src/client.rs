@@ -55,6 +55,18 @@ impl<T: Transport> ViaClient<T> {
         self.write(&via::set_keycode(layer, row, col, code))
     }
 
+    /// Reads up to 28 bytes of the keymap buffer.
+    pub fn get_buffer(&mut self, offset: u16, size: u8) -> Result<Vec<u8>> {
+        if size as usize > via::BUFFER_CHUNK {
+            return Err(Error::BadReply(format!(
+                "buffer reads carry at most {} bytes",
+                via::BUFFER_CHUNK
+            )));
+        }
+        let req = via::get_buffer(offset, size);
+        Ok(via::parse_buffer(&req, &self.query(&req)?)?.to_vec())
+    }
+
     pub fn backlight_get(&mut self, value: u8) -> Result<u8> {
         {
             let req = via::backlight_get(value);
@@ -175,5 +187,15 @@ mod tests {
         assert!(matches!(c.set_keycode(0, 0, 0, 4), Err(Error::BadReply(_))));
         assert!(matches!(c.backlight_set(1, 10), Err(Error::BadReply(_))));
         assert!(matches!(c.backlight_save(), Err(Error::BadReply(_))));
+    }
+
+    #[test]
+    fn reads_the_keymap_buffer_in_chunks() {
+        let mut dev = MockDevice::new(2, 3, 2);
+        dev.keymap[1][4] = 0x1234;
+        let mut c = ViaClient::new(dev);
+        // layer 1, key 4 starts at byte (6 + 4) * 2 = 20
+        assert_eq!(c.get_buffer(20, 2).unwrap(), vec![0x12, 0x34]);
+        assert!(matches!(c.get_buffer(0, 29), Err(Error::BadReply(_))));
     }
 }

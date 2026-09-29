@@ -73,6 +73,18 @@ pub mod mock {
             match out[0] {
                 CMD_GET_PROTOCOL_VERSION => r[1..3].copy_from_slice(&self.protocol.to_be_bytes()),
                 CMD_KEYMAP_LAYER_COUNT => r[1] = self.layers,
+                CMD_KEYMAP_GET_BUFFER => {
+                    let bytes: Vec<u8> = self
+                        .keymap
+                        .iter()
+                        .flatten()
+                        .flat_map(|c| c.to_be_bytes())
+                        .collect();
+                    let offset = u16::from_be_bytes([out[1], out[2]]) as usize;
+                    for i in 0..(out[3] as usize).min(BUFFER_CHUNK) {
+                        r[4 + i] = bytes.get(offset + i).copied().unwrap_or(0);
+                    }
+                }
                 CMD_KEYMAP_GET_KEYCODE => {
                     let code = self
                         .slot(out[1], out[2], out[3])

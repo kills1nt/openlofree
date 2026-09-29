@@ -11,6 +11,10 @@ pub const CMD_CUSTOM_SET_VALUE: u8 = 0x07;
 pub const CMD_CUSTOM_GET_VALUE: u8 = 0x08;
 pub const CMD_CUSTOM_SAVE: u8 = 0x09;
 pub const CMD_KEYMAP_LAYER_COUNT: u8 = 0x11;
+pub const CMD_KEYMAP_GET_BUFFER: u8 = 0x12;
+
+/// Most bytes one buffer reply carries (32-byte report minus 4 header bytes).
+pub const BUFFER_CHUNK: usize = 28;
 
 /// Backlight channel and value ids as used by the reference project linder3hs/lofree-flow-2.
 pub const CHANNEL_BACKLIGHT: u8 = 1;
@@ -83,6 +87,18 @@ pub fn parse_keycode(req: &Report, r: &Report) -> Result<u16> {
 pub fn set_keycode(layer: u8, row: u8, col: u8, code: u16) -> Report {
     let [hi, lo] = code.to_be_bytes();
     pack(&[CMD_KEYMAP_SET_KEYCODE, layer, row, col, hi, lo])
+}
+
+/// Reads `size` bytes of the keymap buffer from `offset`. Layout: layer, then row, then column, two
+/// bytes per key, big endian.
+pub fn get_buffer(offset: u16, size: u8) -> Report {
+    let [hi, lo] = offset.to_be_bytes();
+    pack(&[CMD_KEYMAP_GET_BUFFER, hi, lo, size])
+}
+
+pub fn parse_buffer<'a>(req: &Report, r: &'a Report) -> Result<&'a [u8]> {
+    expect_echo(req, r, 4)?;
+    Ok(&r[4..4 + req[3] as usize])
 }
 
 pub fn backlight_get(value: u8) -> Report {
@@ -189,6 +205,21 @@ mod tests {
         r[0] = 0xFF; // VIA answers 0xFF for commands the firmware does not handle
         assert!(matches!(
             parse_protocol_version(&r),
+            Err(Error::BadReply(_))
+        ));
+    }
+
+    #[test]
+    fn buffer_request_layout_and_reply() {
+        let req = get_buffer(0x0102, 28);
+        assert_eq!(&req[..4], &[0x12, 0x01, 0x02, 28]);
+        let mut r = req;
+        r[4..8].copy_from_slice(&[9, 8, 7, 6]);
+        assert_eq!(&parse_buffer(&req, &r).unwrap()[..4], &[9, 8, 7, 6]);
+        let mut other = r;
+        other[2] = 0x03; // a reply for a different offset
+        assert!(matches!(
+            parse_buffer(&req, &other),
             Err(Error::BadReply(_))
         ));
     }
