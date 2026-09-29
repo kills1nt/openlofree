@@ -1,4 +1,5 @@
 //! Keycode legends for display. Unknown codes fall back to hex, nothing is hidden.
+use serde::Serialize;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Variant {
@@ -70,6 +71,30 @@ pub fn legend(code: u16, variant: Variant) -> String {
         0xE5 => s("R Shift"),
         0xE6 => format!("R {alt}"),
         0xE7 => format!("R {gui}"),
+        0x00A8 => s("Mute"),
+        0x00A9 => s("Vol+"),
+        0x00AA => s("Vol-"),
+        0x00AB => s("Next"),
+        0x00AC => s("Prev"),
+        0x00AD => s("Stop"),
+        0x00AE => s("Play"),
+        0x00AF => s("Media"),
+        0x00B0 => s("Eject"),
+        0x00B1 => s("Mail"),
+        0x00B2 => s("Calc"),
+        0x00B3 => s("My PC"),
+        0x00B4 => s("Search"),
+        0x00B5 => s("WWW Home"),
+        0x00B6 => s("WWW Back"),
+        0x00B7 => s("WWW Fwd"),
+        0x00B8 => s("WWW Stop"),
+        0x00B9 => s("Refresh"),
+        0x00BA => s("Favorites"),
+        0x00BB => s("FF"),
+        0x00BC => s("Rew"),
+        0x00BD => s("Bright+"),
+        0x00BE => s("Bright-"),
+        0x7E00..=0x7E3F => format!("Custom {}", code - 0x7E00),
         BT1 => s("BT1"),
         BT2 => s("BT2"),
         BT3 => s("BT3"),
@@ -83,6 +108,61 @@ pub fn legend(code: u16, variant: Variant) -> String {
         }
         c => format!("0x{c:04X}"),
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CatalogItem {
+    pub code: u16,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CatalogGroup {
+    pub name: &'static str,
+    pub items: Vec<CatalogItem>,
+}
+
+/// Keycodes a picker offers, grouped. `layers` is the keyboard's layer count (layer keys for each).
+pub fn catalog(variant: Variant, layers: u8) -> Vec<CatalogGroup> {
+    let group = |name: &'static str, codes: Vec<u16>| CatalogGroup {
+        name,
+        items: codes
+            .into_iter()
+            .map(|code| CatalogItem {
+                code,
+                label: legend(code, variant),
+            })
+            .collect(),
+    };
+    let layer_keys = (0..layers.min(32) as u16)
+        .flat_map(|n| [QK_MOMENTARY + n, QK_TOGGLE_LAYER + n, QK_TO + n])
+        .collect();
+    vec![
+        group("Letters", (0x04..=0x1D).collect()),
+        group("Numbers", (0x1E..=0x27).collect()),
+        group(
+            "Punctuation",
+            vec![
+                0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
+            ],
+        ),
+        group(
+            "Editing",
+            vec![
+                0x28, 0x29, 0x2A, 0x2B, 0x2C, 0x39, 0x4C, 0x49, 0x46, 0x47, 0x48,
+            ],
+        ),
+        group(
+            "Navigation",
+            vec![0x4A, 0x4D, 0x4B, 0x4E, 0x52, 0x51, 0x50, 0x4F],
+        ),
+        group("Function", (0x3A..=0x45).collect()),
+        group("Modifiers", (0xE0..=0xE7).collect()),
+        group("Media", (0xA8..=0xBE).collect()),
+        group("Layers", layer_keys),
+        group("Wireless", vec![BT1, BT2, BT3, DONGLE_2G4]),
+        group("Special", vec![KC_NO, 0x0001]),
+    ]
 }
 
 #[cfg(test)]
@@ -120,5 +200,68 @@ mod tests {
     #[test]
     fn unknown_codes_show_hex() {
         assert_eq!(legend(0x1234, Mac), "0x1234");
+    }
+
+    #[test]
+    fn media_and_custom_codes_have_labels() {
+        // Codes read from the owner's 84-key top row.
+        assert_eq!(legend(0x00A8, Mac), "Mute");
+        assert_eq!(legend(0x00A9, Mac), "Vol+");
+        assert_eq!(legend(0x00AA, Mac), "Vol-");
+        assert_eq!(legend(0x00AB, Mac), "Next");
+        assert_eq!(legend(0x00AC, Mac), "Prev");
+        assert_eq!(legend(0x00AE, Mac), "Play");
+        assert_eq!(legend(0x00BD, Mac), "Bright+");
+        assert_eq!(legend(0x00BE, Mac), "Bright-");
+        assert_eq!(legend(0x7E0B, Mac), "Custom 11");
+    }
+
+    #[test]
+    fn catalog_labels_match_legends_and_codes_are_unique() {
+        for variant in [Win, Mac] {
+            let mut seen = std::collections::HashSet::new();
+            for group in catalog(variant, 6) {
+                assert!(!group.items.is_empty(), "{} is empty", group.name);
+                for item in group.items {
+                    assert_eq!(
+                        item.label,
+                        legend(item.code, variant),
+                        "code {:#06x}",
+                        item.code
+                    );
+                    assert!(seen.insert(item.code), "duplicate code {:#06x}", item.code);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn catalog_layer_keys_follow_the_layer_count() {
+        let layers = |n: u8| {
+            catalog(Mac, n)
+                .into_iter()
+                .find(|g| g.name == "Layers")
+                .unwrap()
+                .items
+                .len()
+        };
+        assert_eq!(layers(1), 3);
+        assert_eq!(layers(6), 18);
+    }
+
+    #[test]
+    fn catalog_has_the_groups_a_picker_needs() {
+        let names: Vec<_> = catalog(Mac, 2).into_iter().map(|g| g.name).collect();
+        for want in [
+            "Letters",
+            "Numbers",
+            "Modifiers",
+            "Media",
+            "Layers",
+            "Wireless",
+            "Special",
+        ] {
+            assert!(names.contains(&want), "missing {want}");
+        }
     }
 }
