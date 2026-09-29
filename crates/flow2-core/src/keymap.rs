@@ -25,6 +25,18 @@ pub fn read<T: Transport>(client: &mut ViaClient<T>, rows: u8, cols: u8) -> Resu
     Ok(Keymap { rows, cols, layers })
 }
 
+/// Refuses a position outside the matrix or the layer count. Some firmware builds compute an EEPROM
+/// address from these values without a bounds check, so out-of-range writes must never be sent.
+pub fn check_position(rows: u8, cols: u8, layers: u8, layer: u8, row: u8, col: u8) -> Result<()> {
+    if layer < layers && row < rows && col < cols {
+        Ok(())
+    } else {
+        Err(Error::Profile(format!(
+            "layer {layer} row {row} col {col} is outside {layers} layers of {rows}x{cols}"
+        )))
+    }
+}
+
 /// Writes one key, then reads it back. A mismatch is an error, never silent.
 pub fn set_key_verified<T: Transport>(
     client: &mut ViaClient<T>,
@@ -163,5 +175,22 @@ mod tests {
         let mut c = ViaClient::new(half_written);
         assert_eq!(apply(&mut c, &target).unwrap(), 1);
         assert_eq!(read(&mut c, 2, 3).unwrap(), target);
+    }
+
+    #[test]
+    fn check_position_rejects_out_of_range_targets() {
+        assert!(check_position(6, 15, 4, 3, 5, 14).is_ok());
+        assert!(matches!(
+            check_position(6, 15, 4, 4, 0, 0),
+            Err(Error::Profile(_))
+        ));
+        assert!(matches!(
+            check_position(6, 15, 4, 0, 6, 0),
+            Err(Error::Profile(_))
+        ));
+        assert!(matches!(
+            check_position(6, 15, 4, 0, 0, 15),
+            Err(Error::Profile(_))
+        ));
     }
 }

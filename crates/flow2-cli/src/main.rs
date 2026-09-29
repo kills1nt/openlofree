@@ -146,6 +146,8 @@ fn run(cli: Cli) -> Result<()> {
             col,
             code,
         } => {
+            let layers = s.client.layer_count()?;
+            keymap::check_position(s.def.rows, s.def.cols, layers, layer, row, col)?;
             s.guard_write()?;
             keymap::set_key_verified(&mut s.client, layer, row, col, code)?;
             println!(
