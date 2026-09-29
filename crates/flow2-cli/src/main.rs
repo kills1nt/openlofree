@@ -93,8 +93,10 @@ fn connect() -> Result<Session> {
 impl Session {
     /// Call before the first write of a run. Creates the factory backup once.
     fn guard_write(&mut self) -> Result<()> {
-        let Some(path) = profile::factory_backup_path() else {
-            return Ok(());
+        let Some(path) = profile::factory_backup_path(self.model_id) else {
+            return Err(Error::Profile(
+                "no config directory for the factory backup, refusing to write".into(),
+            ));
         };
         if profile::ensure_factory_backup(&mut self.client, self.model_id, &self.def, &path)? {
             println!("saved factory backup to {}", path.display());

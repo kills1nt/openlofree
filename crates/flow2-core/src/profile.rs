@@ -46,7 +46,11 @@ impl Profile {
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir).map_err(|e| Error::Profile(e.to_string()))?;
         }
-        fs::write(path, self.to_json()?).map_err(|e| Error::Profile(e.to_string()))
+        // Write beside the target and rename, so a crash never leaves a truncated profile behind.
+        let tmp = path.with_extension("json.tmp");
+        let io = |e: std::io::Error| Error::Profile(e.to_string());
+        fs::write(&tmp, self.to_json()?).map_err(io)?;
+        fs::rename(&tmp, path).map_err(io)
     }
 
     pub fn load(path: &Path) -> Result<Self> {
@@ -215,11 +219,15 @@ impl ProfileStore {
     }
 }
 
-pub fn factory_backup_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("openlofree").join("factory-backup.json"))
+/// One factory backup per model, so a second keyboard never inherits the first one's.
+pub fn factory_backup_path(model_id: &str) -> Option<PathBuf> {
+    dirs::config_dir().map(|d| {
+        d.join("openlofree")
+            .join(format!("factory-backup-{model_id}.json"))
+    })
 }
 
-/// Saves the keyboard's current state once, before the first write. Never overwrites.
+/// Saves the keyboard's current state once, before the first write. Never overwrites a readable backup.
 /// Returns true if a backup was created now.
 pub fn ensure_factory_backup<T: Transport>(
     client: &mut ViaClient<T>,
@@ -227,10 +235,12 @@ pub fn ensure_factory_backup<T: Transport>(
     def: &ModelDef,
     path: &Path,
 ) -> Result<bool> {
-    if path.exists() {
+    if path.exists() && Profile::load(path).is_ok() {
         return Ok(false);
     }
-    capture(client, model_id, def, "Factory backup")?.save(path)?;
+    let backup = capture(client, model_id, def, "Factory backup")?;
+    Profile::from_json(&backup.to_json()?)?; // never save a backup that could not be loaded again
+    backup.save(path)?;
     Ok(true)
 }
 
@@ -411,5 +421,42 @@ mod tests {
         fs::write(s.dir.join("profile-bad.json"), "{ not json").unwrap();
         let names: Vec<_> = s.list().unwrap().into_iter().map(|p| p.name).collect();
         assert_eq!(names, ["Good"]);
+    }
+
+    #[test]
+    fn factory_backup_path_is_per_model() {
+        let a = factory_backup_path("m1").unwrap();
+        let b = factory_backup_path("m2").unwrap();
+        assert_ne!(a, b);
+        assert!(a.file_name().unwrap().to_string_lossy().contains("m1"));
+    }
+
+    #[test]
+    fn save_writes_a_temp_file_then_renames_it() {
+        let path = tmp("atomic.json");
+        sample("A").save(&path).unwrap();
+        assert!(Profile::load(&path).is_ok());
+        assert!(!path.with_extension("json.tmp").exists());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn unreadable_factory_backup_is_replaced() {
+        let path = tmp("broken-backup.json");
+        fs::write(&path, "{ broken").unwrap();
+        assert!(ensure_factory_backup(&mut client(), "test", &def(), &path).unwrap());
+        assert!(Profile::load(&path).is_ok());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn backup_of_a_keyboard_reporting_no_layers_is_refused() {
+        let path = tmp("no-layers.json");
+        let mut c = ViaClient::new(MockDevice::new(2, 3, 0));
+        assert!(matches!(
+            ensure_factory_backup(&mut c, "test", &def(), &path),
+            Err(Error::Profile(_))
+        ));
+        assert!(!path.exists());
     }
 }
